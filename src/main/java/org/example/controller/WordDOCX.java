@@ -1,10 +1,9 @@
-package org.example;
+package org.example.controller;
 
 import org.apache.poi.xwpf.usermodel.*;
+import org.example.model.TagMap;
 
 import java.io.*;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.HashMap;
 
@@ -17,7 +16,7 @@ public class WordDOCX {
     private final TagMap tagMap;
     private File file;
 
-    public WordDOCX(TagMap tagMap, File file) {
+    WordDOCX(TagMap tagMap, File file) {
         this.tagMap = tagMap;
         this.file = file;
     }
@@ -26,7 +25,7 @@ public class WordDOCX {
      * Метод changeFile() выполняет замену текста в документе и сохранение изменений.
      * @throws IOException если возникают проблемы при чтении или записи файла.
      */
-    public void changeFile(String newFilePath) throws IOException {
+    void changeFile(String newFilePath) throws IOException {
         // inputStream - входной поток данных, FileInputStream - чтения байтов из файла
         try (InputStream inputStream = new FileInputStream(file)){
             // создание объект для работы с .docx

@@ -1,16 +1,16 @@
-package org.example;
+package org.example.controller;
+
+import org.example.model.TagMap;
 
 import java.io.*;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
 public class GenerateFileUsingTable {
     private TagMap tagMap;
     // Загрузка данных из CSV файла
-    Map<String, String> dataMap = new HashMap<>();
-    public GenerateFileUsingTable(TagMap tagMap, String outputFolderPath) {
+    private Map<String, String> dataMap = new HashMap<>();
+    GenerateFileUsingTable(TagMap tagMap, String outputFolderPath) {
         this.tagMap = tagMap;
         // Путь к CSV файлу с данными
         String csvFilePath = outputFolderPath + File.separator + "tags.csv";

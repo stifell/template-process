@@ -1,12 +1,20 @@
-package org.example;
+package org.example.controller;
+
+import com.documents4j.api.DocumentType;
+import com.documents4j.api.IConverter;
+import com.documents4j.job.LocalConverter;
+import org.example.main.Main;
+import org.example.model.*;
 
 import javax.swing.*;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
+
+import static org.example.view.ViewModelStartScreen.chosenDirectoryPath;
+import static org.example.view.ViewModelStartScreen.isConvertToPdfSelected;
 
 /**
  * @author Денис on 21.05.2024
@@ -16,18 +24,18 @@ public class DocumentGenerator {
     private GenerateFileUsingTable generateFileUsingTable;
     private Authors additionalAuthors;
     private Authors multiAuthors;
-    TagExtractor tagExtractor;
-    TagMap tagMap;
+    public TagExtractor tagExtractor;
+    private TagMap tagMap;
     private TagMap copyTagMap = new TagMap();
-    String outputFolderPath;
-    File[] selectedFiles;
+    public String outputFolderPath;
+    public File[] selectedFiles;
     public DocumentGenerator(Main main) {
         this.main = main;
         tagMap = new TagMap();
         tagExtractor = new TagExtractor(this.main);
     }
 
-    public void fillAddAuthorsTags() {
+    private void fillAddAuthorsTags() {
         if (additionalAuthors == null || additionalAuthors.getTagMaps().isEmpty()) {
             return;
         }
@@ -53,7 +61,7 @@ public class DocumentGenerator {
         }
     }
 
-    public void fillMultiAuthorsTags() {
+    private void fillMultiAuthorsTags() {
         if (multiAuthors == null || multiAuthors.getTagMaps().isEmpty()) {
             return;
         }
@@ -76,7 +84,7 @@ public class DocumentGenerator {
     }
 
     // функция заполнения значений тегов
-    void fillTags() {
+    private void fillTags() {
         // Получаем список тегов
         Set<String> tags = tagExtractor.uniqueTags;
         // Получаем список всех текстовых полей из ViewModel
@@ -102,7 +110,7 @@ public class DocumentGenerator {
         }
     }
 
-    void chooseFillTag(){
+    private void chooseFillTag(){
         if (main.viewModelStartScreen.verification){
             fillTags();
         }else {
@@ -111,7 +119,7 @@ public class DocumentGenerator {
         }
     }
 
-    void generateDocument() {
+    public void generateDocument() {
         chooseFillTag();
         // Создаем изменяемый список для хранения файлов, которые нужно обработать
         List<File> filesToProcess = new ArrayList<>(List.of(selectedFiles));
@@ -163,15 +171,20 @@ public class DocumentGenerator {
         for (File file: filesToProcess){
             replaceText(file, tagMap, file.getName());
         }
+
+        // Конвертация в PDF, если включена опция convertToPdf
+        if (isConvertToPdfSelected()) {
+            convertAllWordDocumentsToPdf();
+        }
     }
 
-    void replaceText(File file, TagMap tags, String authorPrefix){
+    private void replaceText(File file, TagMap tags, String authorPrefix){
         String fileName = file.getName();
         try {
             // Проверка наличия пустых значений в TagMap
             boolean hasEmptyValues = checkForEmptyValues();
             if (!hasEmptyValues) {
-                String newFilePath = outputFolderPath + File.separator + authorPrefix;
+                String newFilePath = outputFolderPath + File.separator + "Word" + File.separator + authorPrefix;
                 if (fileName.endsWith(".doc")) {
                     WordDOC wordDOC = new WordDOC(tags, file);
                     wordDOC.changeFile(newFilePath);
@@ -192,9 +205,48 @@ public class DocumentGenerator {
         }
     }
 
+    // Метод для чтения всех Word документов и их конвертации в PDF
+    private void convertAllWordDocumentsToPdf() {
+        File wordFolder = new File(outputFolderPath, "Word");
+        File pdfFolder = new File(outputFolderPath, "PDF");
+
+        if (!pdfFolder.exists()) {
+            pdfFolder.mkdirs();  // Создаем папку PDF, если она не существует
+        }
+        // Читаем файлы из папки Word
+        File[] wordFiles = wordFolder.listFiles((dir, name) -> name.endsWith(".docx"));
+
+        if (wordFiles != null) {
+            for (File wordFile : wordFiles) {
+                String pdfFileName = wordFile.getName().replace(".docx", ".pdf");
+                File pdfFile = new File(pdfFolder, pdfFileName);
+                convertDocxToPdf(wordFile.getAbsolutePath(), pdfFile.getAbsolutePath());
+            }
+        }
+    }
+
+    // Метод конвертации DOCX в PDF
+    public static void convertDocxToPdf(String docPath, String pdfPath) {
+        IConverter converter = null;
+        try  {
+            InputStream docxInputStream = new FileInputStream(docPath);
+            OutputStream outputStream = new FileOutputStream(pdfPath);
+            converter = LocalConverter.builder().build();
+            converter.convert(docxInputStream).as(DocumentType.DOCX).to(outputStream).as(DocumentType.PDF).execute();
+            outputStream.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (converter != null) {
+                // Явно закрываем конвертер
+                converter.shutDown();
+            }
+        }
+    }
+
     // функция проверяет есть ли в теге что-то или там пусто, или null и выводит соответсвующее сообщение в консоль,
     // а если значение есть, то возвращает false
-    boolean checkForEmptyValues() {
+    private boolean checkForEmptyValues() {
         boolean hasEmptyValues = false;
         for (Map.Entry<String, String> entry : tagMap.getTagMap().entrySet()) {
             String value = entry.getValue();
@@ -208,21 +260,20 @@ public class DocumentGenerator {
     }
 
     // Метод для создания папки сохранения
-    void createFolder() {
+    public void createFolder() {
         // Получаем текущую дату и время
         SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy_HH-mm-ss");
         String currentDateTime = sdf.format(new Date());
-        String targetFolder = getClass().getClassLoader().getResource("").getPath();
+        String targetFolder = chosenDirectoryPath != null ? chosenDirectoryPath : getClass().getClassLoader().getResource("").getPath();
         targetFolder = URLDecoder.decode(targetFolder, StandardCharsets.UTF_8);
-        outputFolderPath = targetFolder + currentDateTime;
+        outputFolderPath = targetFolder + File.separator + currentDateTime;
         // Создаем папку
         File outputFolder = new File(outputFolderPath);
-        if (!outputFolder.exists()) {
-            if (outputFolder.mkdirs()) {
-                System.out.println("Создана папка для сохранения файлов: " + outputFolder.getAbsolutePath());
-            } else {
-                System.err.println("Не удалось создать папку для сохранения файлов");
+        if (outputFolder.mkdirs()) {
+            if (isConvertToPdfSelected()){
+                new File(outputFolder, "PDF").mkdir();
             }
+            new File(outputFolder, "Word").mkdir();
         }
     }
 }

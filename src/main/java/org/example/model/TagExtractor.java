@@ -1,9 +1,10 @@
-package org.example;
+package org.example.model;
 
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.example.main.Main;
 
 import java.io.*;
 import java.util.*;
@@ -16,20 +17,21 @@ import java.util.regex.Pattern;
 public class TagExtractor {
     private final String regex = "\\$\\{[^}]+\\}";
     private Pattern pattern;
-    List<String> tags = new ArrayList<>();
-    Set<String> uniqueTags = new HashSet<>();
-    HashMap<String, List<String>> fileTagMap = new HashMap<>();
-
-
+    private List<String> tags = new ArrayList<>();
+    private Set<String> uniqueTags = new HashSet<>();
+    public String csvFilePath;
+    private HashMap<String, List<String>> fileTagMap = new HashMap<>();
     private Main main;
+    private TagDatabase tagDatabase;
+
     public TagExtractor(Main main) {
         this.main = main;
         this.pattern = Pattern.compile(regex);
-
+        this.tagDatabase = new TagDatabase();
     }
-    void writeTagsToCSV(File[] Files, String folderPath) {
+
+    public void writeTagsToCSV(File[] Files, String csvFilePath) {
         uniqueTags = new HashSet<>();
-        String csvFilePath = folderPath + File.separator + "tags.csv";
         Pattern pattern = Pattern.compile(regex);
         try (PrintWriter writer = new PrintWriter(new BufferedWriter(new OutputStreamWriter(
                 new FileOutputStream(csvFilePath, true), "cp1251")))) {
@@ -41,11 +43,11 @@ public class TagExtractor {
                         while (matcher.find()) {
                             String tag = matcher.group();
                             if (!uniqueTags.contains(tag)) {
-                                writer.println(tag + ";1");
+                                String value = tagDatabase.getPlaceholder(tag);
+                                writer.println(value + ";"+tag + ";1");
                                 uniqueTags.add(tag);
                             }
                         }
-//                        writer.println();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -58,8 +60,8 @@ public class TagExtractor {
         }
     }
 
-    public Set<String> writeTagsToSet(File[] files) {
-        uniqueTags = new HashSet<>();
+    private Set<String> writeTagsToSet(File[] files) {
+        Set<String> uniqueTags = new HashSet<>();
         Pattern pattern = Pattern.compile(regex);
         for (File file : files) {
             if (file.isFile() && (file.getName().endsWith(".doc") || file.getName().endsWith(".docx"))) {
@@ -81,31 +83,28 @@ public class TagExtractor {
         addCountAuthors(false, null);
         return uniqueTags;
     }
-    //работает теперь
+
     public HashMap<String, List<String>> writeTagsToMap(File[] files) {
         fileTagMap = new HashMap<>();
-        uniqueTags = writeTagsToSet(files);
+        uniqueTags = new HashSet<>();
+
         for (File file : files) {
             if (file.isFile() && (file.getName().endsWith(".doc") || file.getName().endsWith(".docx"))) {
                 try {
                     String text = readTextFromFile(file);
                     Matcher matcher = pattern.matcher(text);
+                    List<String> fileTags = new ArrayList<>();
+
                     while (matcher.find()) {
                         String tag = matcher.group();
-                        if (!fileTagMap.containsKey(file.getName())) {
-                            fileTagMap.put(file.getName(), new ArrayList<>());
+                        if (!uniqueTags.contains(tag)) {
+                            uniqueTags.add(tag);
                         }
-                        tags = fileTagMap.get(file.getName());
-                        if (!tags.contains(tag)) {
-                            tags.add(tag);
-                        }
-                    }
-                    // Add remaining uniqueTags to fileTagMap for this file
-                    for (String tag : uniqueTags) {
-                        if (!tags.contains(tag)) {
-                            tags.add(tag);
+                        if (!fileTags.contains(tag)) {
+                            fileTags.add(tag);
                         }
                     }
+                    fileTagMap.put(file.getName(), fileTags);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -118,22 +117,38 @@ public class TagExtractor {
     }
 
 
-    private void addCountAuthors(boolean useCSV, PrintWriter writer){
+
+    private void addCountAuthors(boolean useCSV, PrintWriter writer) {
         Set<String> additionTags = new HashSet<>();
         int countAuthors = main.viewModelStartScreen.selectedNumber;
-        if (countAuthors > 4){
-            for (String tag: uniqueTags){
-                if (tag.contains("key_ria_authorX1")){
+
+        if (countAuthors > 4) {
+            for (String tag : uniqueTags) {
+                if (tag.contains("key_ria_authorX1")) {
                     additionTags.add(tag);
                 }
             }
+
             for (int i = 1; i <= countAuthors; i++) {
                 for (String tag : additionTags) {
-                    String authorTag = tag.replace("X1", "X" + i); // Заменяем "X1" на текущий индекс автора
+                    String authorTag = tag.replace("X1", "X" + i); // Заменяем "X1" на нужный номер автора
                     if (!uniqueTags.contains(authorTag)) {
                         uniqueTags.add(authorTag);
+
+                        // Добавляем новый authorTag в fileTagMap
+                        for (Map.Entry<String, List<String>> entry : fileTagMap.entrySet()) {
+                            List<String> tagsList = entry.getValue();
+                            if (!tagsList.contains(authorTag)) {
+                                tagsList.add(authorTag);
+                            }
+                        }
+
+                        // Работа с базой данных: получаем значение из базы данных или добавляем новый тег
+                        String placeholder = tagDatabase.getPlaceholder(authorTag);
+
+                        // Запись в CSV, если это требуется
                         if (useCSV && writer != null) {
-                            writer.println(authorTag + ";1");
+                            writer.println(placeholder + ";" + authorTag + ";1");
                         }
                         System.out.println(authorTag);
                     }
@@ -141,6 +156,8 @@ public class TagExtractor {
             }
         }
     }
+
+
 
     private String readTextFromFile(File file) throws IOException {
         StringBuilder text = new StringBuilder();
@@ -158,5 +175,36 @@ public class TagExtractor {
             }
         }
         return text.toString();
+    }
+
+    public List<String> verifyTagsInCSV(File[] files, File csvFile) {
+        Set<String> documentTags = writeTagsToSet(files); // Получаем теги из документов
+        Set<String> csvTags = new HashSet<>();
+        // Загружаем теги из файла CSV
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(csvFile), "cp1251"))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(";", 3);
+                if (parts.length == 3) {
+                    csvTags.add(parts[1].trim()); // Загружаем тег в set
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // Проверяем наличие всех тегов в CSV
+        List<String> missingTags = new ArrayList<>();
+        for (String tag : documentTags) {
+            if (!csvTags.contains(tag)) {
+                missingTags.add(tag); // Добавляем отсутствующий тег в список
+            }
+        }
+
+        return missingTags;
+    }
+
+    public Set<String> getUniqueTags() {
+        return uniqueTags;
     }
 }

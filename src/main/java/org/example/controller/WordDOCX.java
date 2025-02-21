@@ -1,10 +1,9 @@
-package org.example;
+package org.example.controller;
 
 import org.apache.poi.xwpf.usermodel.*;
+import org.example.model.TagMap;
 
 import java.io.*;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.HashMap;
 
@@ -17,7 +16,7 @@ public class WordDOCX {
     private final TagMap tagMap;
     private File file;
 
-    public WordDOCX(TagMap tagMap, File file) {
+    WordDOCX(TagMap tagMap, File file) {
         this.tagMap = tagMap;
         this.file = file;
     }
@@ -26,7 +25,7 @@ public class WordDOCX {
      * Метод changeFile() выполняет замену текста в документе и сохранение изменений.
      * @throws IOException если возникают проблемы при чтении или записи файла.
      */
-    public void changeFile(String newFilePath) throws IOException {
+    void changeFile(String newFilePath) throws IOException {
         // inputStream - входной поток данных, FileInputStream - чтения байтов из файла
         try (InputStream inputStream = new FileInputStream(file)){
             // создание объект для работы с .docx
@@ -62,30 +61,32 @@ public class WordDOCX {
 
     /**
      * Метод iterationAllParagraphs() выполняет итерацию по всем абзацам в списке абзацев документа
-     * и передает каждый абзац в метод iterateThroughRuns() для замены текста.
+     * и передает список runs в метод iterateThroughRuns() для замены текста.
      * @param paragraphs список абзацев, которые нужно обработать.
      */
     private void iterationAllParagraphs(List<XWPFParagraph> paragraphs){
-        paragraphs.forEach(this::iterateThroughRuns);
+        for (XWPFParagraph paragraph : paragraphs) {
+            List<XWPFRun> runs = paragraph.getRuns();
+            if (runs == null || runs.isEmpty()) {
+                continue; // Пропускаем пустые абзацы
+            }
+            iterateThroughRuns(runs);
+        }
     }
 
     /**
      * Итерирует через все объекты XWPFRun в заданном абзаце
      * и меняет теги на значения
-     * @param paragraph абзац, содержащий объекты XWPFRun.
+     * @param runs список объектов XWPFRun, содержащих текст.
      */
-    private void iterateThroughRuns(XWPFParagraph paragraph){
-        List<XWPFRun> runs = paragraph.getRuns();
-        // проверка наличия объектов XWPFRun в абзаце
-        if (runs == null)
-            return;
+    private void iterateThroughRuns(List<XWPFRun> runs){
         int index = 0;
         int runsSize = runs.size();
+        if (runsSize == 0) return;
         // вычисляет индекс новой позиции, начиная с которой будет продолжено замена тегов
         int newIndex = checkTextParagraph(runs, index, runsSize);
         // если новый индекс меньше текущего, то тега в абзаце нет
-        if (index > newIndex)
-            return;
+        if (index > newIndex) return;
         // обновляет индекс
         index = newIndex;
         while (index < runsSize) {
@@ -246,10 +247,13 @@ public class WordDOCX {
      * @param toRemove текст, который нужно удалить из исходного текста.
      */
     private void deleteWord(XWPFRun run, String runText, String toRemove) {
-        // заменяет указанный текст на пустую строку
-        String updatedText = runText.replace(toRemove, "");
-        // устанавливает обновленный текст в объекте
-        run.setText(updatedText, 0);
+        // Проверяем, содержит ли текст удаляемое слово
+        int index = runText.indexOf(toRemove);
+        if (index != -1) {
+            // Удаляем только первое вхождение
+            String updatedText = runText.substring(0, index) + runText.substring(index + toRemove.length());
+            run.setText(updatedText, 0);
+        }
     }
 
     /**

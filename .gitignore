@@ -36,3 +36,8 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+*.log
+
+# Игнорировать тестовые файлы в основном коде
+src/main/java/org/example/controller/BlockProcessorTest.java

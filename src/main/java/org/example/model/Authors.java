@@ -1,4 +1,4 @@
-package org.example;
+package org.example.model;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,10 +9,8 @@ import java.util.List;
  */
 public class Authors {
     private List<TagMap> tagAuthors;
-    private int countAuthors;
 
     public Authors(int countAuthors) {
-        this.countAuthors = countAuthors;
         tagAuthors = new ArrayList<>();
         for (int i = 0; i < countAuthors; i++){
             tagAuthors.add(new TagMap());
@@ -22,7 +20,7 @@ public class Authors {
     // Метод для получения тегов первого автора (основной TagMap)
     public TagMap getMainTagMap() {
         if (tagAuthors == null || tagAuthors.isEmpty()) {
-            return new TagMap(new HashMap<>());
+            return new TagMap();
         }
         return tagAuthors.get(0);
     }
@@ -30,17 +28,13 @@ public class Authors {
     // Метод для получения тегов автора по индексу
     public TagMap getTagMapByIndex(int index) {
         if (tagAuthors == null || tagAuthors.size() <= index) {
-            return new TagMap(new HashMap<>());
+            return new TagMap();
         }
         return tagAuthors.get(index);
     }
 
     public List<TagMap> getTagMaps() {
         return tagAuthors;
-    }
-
-    public void addTagMap(TagMap tagMap) {
-        tagAuthors.add(tagMap);
     }
 
     public void addTagToAuthor(int authorIndex, String tag, String value) {

@@ -1,12 +1,11 @@
-package org.example;
+package org.example.controller;
 
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.usermodel.Range;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
+import org.example.model.TagMap;
 
 import java.io.*;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 
 /**
@@ -26,7 +25,7 @@ public class WordDOC {
      * заменяет определенные текстовые метки в документе и сохраняет изменения.
      * @throws IOException если возникает ошибка ввода-вывода при чтении или записи файла
      */
-    public void changeFile(String newFilePath) throws IOException{
+    void changeFile(String newFilePath) throws IOException{
         // inputStream - входной поток данных, FileInputStream - чтения байтов из файла
         // POIFSFileSystem - объект для работы с документом Word
         try (InputStream inputStream = new FileInputStream(file);
@@ -48,7 +47,7 @@ public class WordDOC {
     private HWPFDocument replaceText(HWPFDocument doc){
         // диапазон, охватывающий весь текст документа
         Range range = doc.getRange();
-        for(HashMap.Entry<String, String> entry: tagMap.getTagMap().entrySet()) {
+        for(HashMap.Entry<String, String> entry: tagMap.entrySet()) {
             // получение ключа
             String tag = entry.getKey();
             // получение значения
